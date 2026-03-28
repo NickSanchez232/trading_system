@@ -184,7 +184,7 @@ def save_insider_trades(all_trades):
             (trade["symbol"],)
         )
 
-cursor.execute(
+        cursor.execute(
             """INSERT INTO insider_trades
                 (symbol, filing_date, trade_date, insider_name, insider_title,
                  trade_type, shares, price_per_share, total_value, shares_owned_after)
@@ -221,7 +221,6 @@ cursor.execute(
     cursor.close()
     conn.close()
     print(f"Saved {total_saved} insider trades to database.")
-
 def fetch_all_insider_trades(days_back=365):
     from polygon_scraper import WATCHLIST
 
