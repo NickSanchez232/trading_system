@@ -184,11 +184,19 @@ def save_insider_trades(all_trades):
             (trade["symbol"],)
         )
 
-        cursor.execute(
+cursor.execute(
             """INSERT INTO insider_trades
                 (symbol, filing_date, trade_date, insider_name, insider_title,
                  trade_type, shares, price_per_share, total_value, shares_owned_after)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+            SELECT %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+            WHERE NOT EXISTS (
+                SELECT 1 FROM insider_trades
+                WHERE symbol = %s
+                AND trade_date = %s
+                AND insider_name = %s
+                AND trade_type = %s
+                AND shares = %s
+            )""",
             (
                 trade["symbol"],
                 trade["filing_date"],
@@ -200,6 +208,11 @@ def save_insider_trades(all_trades):
                 trade["price_per_share"],
                 trade["total_value"],
                 trade["shares_owned_after"],
+                trade["symbol"],
+                trade["trade_date"],
+                trade["insider_name"],
+                trade["trade_type"],
+                trade["shares"],
             )
         )
         total_saved += 1
