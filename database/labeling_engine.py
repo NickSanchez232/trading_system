@@ -1,5 +1,6 @@
 import os
 import psycopg2
+from sqlalchemy import create_engine
 import pandas as pd
 from datetime import datetime, date, timedelta
 from dotenv import load_dotenv
@@ -9,11 +10,11 @@ load_dotenv()
 
 def get_price_data():
     db_url = os.getenv("DATABASE_URL")
-    conn = psycopg2.connect(db_url)
+    engine = create_engine(db_url)
 
     query = "SELECT symbol, date, close FROM daily_prices ORDER BY symbol, date"
-    df = pd.read_sql(query, conn)
-    conn.close()
+    df = pd.read_sql(query, engine)
+    engine.dispose()
 
     print(f"Loaded {len(df)} price records")
     return df

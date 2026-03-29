@@ -2,13 +2,14 @@ import os
 import pandas as pd
 import numpy as np
 import psycopg2
+from sqlalchemy import create_engine
 from dotenv import load_dotenv
 
 load_dotenv()
 
 def get_price_data(symbol):
     db_url = os.getenv("DATABASE_URL")
-    conn = psycopg2.connect(db_url)
+    engine = create_engine(db_url)
 
     query = """
         SELECT symbol, date, open, high, low, close, volume, vwap
@@ -17,8 +18,8 @@ def get_price_data(symbol):
         ORDER BY date ASC
     """
 
-    df = pd.read_sql(query, conn, params=(symbol,))
-    conn.close()
+    df = pd.read_sql(query, engine, params=(symbol,))
+    engine.dispose()
 
     print(f"Loaded {len(df)} days of price data for {symbol}")
     return df

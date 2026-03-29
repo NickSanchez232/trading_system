@@ -32,6 +32,16 @@ WATCHLIST = [
     "FCX", "NEM",
     # Defense
     "LMT",
+    # High insider activity
+    "INTC", "UBER", "PLTR", "SOFI", "COIN",
+    # High volatility
+    "MARA", "RIOT", "SMCI", "ENPH", "LCID",
+    # High short interest
+    "GME", "AMC", "CVNA", "UPST", "AFRM",
+    # Heavy options flow
+    "SPY", "QQQ", "IWM", "MSTR", "HOOD",
+    # Stable blue chips
+    "PG", "KO", "JNJ", "MCD", "T",
 ]
 
 def get_daily_prices(symbol, from_date, to_date):

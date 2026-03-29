@@ -1,39 +1,40 @@
 import os
 import psycopg2
 import pandas as pd
+from sqlalchemy import create_engine
 from dotenv import load_dotenv
 
 load_dotenv()
 
 def build_training_dataset():
     db_url = os.getenv("DATABASE_URL")
-    conn = psycopg2.connect(db_url)
+    engine = create_engine(db_url)
 
     print("Loading labels...")
-    labels = pd.read_sql("SELECT symbol, signal_date, return_pct, label FROM labels", conn)
+    labels = pd.read_sql("SELECT symbol, signal_date, return_pct, label FROM labels", engine)
     print(f"  {len(labels)} labels")
 
     print("Loading technicals...")
-    technicals = pd.read_sql("SELECT * FROM technicals", conn)
+    technicals = pd.read_sql("SELECT * FROM technicals", engine)
     print(f"  {len(technicals)} technical records")
 
     print("Loading fundamentals...")
-    fundamentals = pd.read_sql("SELECT * FROM fundamentals", conn)
+    fundamentals = pd.read_sql("SELECT * FROM fundamentals", engine)
     print(f"  {len(fundamentals)} fundamental records")
 
     print("Loading macro data...")
-    macro = pd.read_sql("SELECT * FROM macro_data", conn)
+    macro = pd.read_sql("SELECT * FROM macro_data", engine)
     print(f"  {len(macro)} macro records")
 
     print("Loading stock signals...")
-    stock_signals = pd.read_sql("SELECT * FROM stock_signals", conn)
+    stock_signals = pd.read_sql("SELECT * FROM stock_signals", engine)
     print(f"  {len(stock_signals)} stock signal records")
 
     print("Loading sentiment...")
-    sentiment = pd.read_sql("SELECT * FROM sentiment", conn)
+    sentiment = pd.read_sql("SELECT * FROM sentiment", engine)
     print(f"  {len(sentiment)} sentiment records")
 
-    conn.close()
+    engine.dispose()
 
     # Merge everything together on symbol and date
     print("\nMerging datasets...")
