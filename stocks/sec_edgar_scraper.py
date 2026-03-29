@@ -15,22 +15,32 @@ HEADERS = {
 SESSION = requests.Session()
 SESSION.headers.update(HEADERS)
 
+CIK_CACHE = {}
+
 def get_cik(symbol):
+    if symbol in CIK_CACHE:
+        return CIK_CACHE[symbol]
+
+    time.sleep(0.5)
     url = "https://www.sec.gov/files/company_tickers.json"
-    time.sleep(0.1)
-    response = SESSION.get(url, timeout=30)
-    data = response.json()
 
-    for key, info in data.items():
-        if info.get("ticker", "").upper() == symbol.upper():
-            cik = str(info["cik_str"]).zfill(10)
-            print(f"Found CIK for {symbol}: {cik}")
-            return cik
+    try:
+        response = SESSION.get(url, timeout=30)
+        data = response.json()
 
-    print(f"Could not find CIK for {symbol}")
+        for key, info in data.items():
+            CIK_CACHE[info.get("ticker", "").upper()] = str(info["cik_str"]).zfill(10)
+
+        if symbol.upper() in CIK_CACHE:
+            print(f"Found CIK for {symbol}: {CIK_CACHE[symbol.upper()]}")
+            return CIK_CACHE[symbol.upper()]
+
+    except Exception as e:
+        print(f"CIK lookup failed for {symbol}: {e}")
+
     return None
 
-def get_insider_trades(symbol, days_back=365):
+def get_insider_trades(symbol, days_back=3650):
     cik = get_cik(symbol)
     if not cik:
         return []
@@ -177,51 +187,57 @@ def save_insider_trades(all_trades):
     cursor = conn.cursor()
 
     total_saved = 0
+    total_skipped = 0
 
     for trade in all_trades:
-        cursor.execute(
-            "INSERT INTO stocks (symbol) VALUES (%s) ON CONFLICT (symbol) DO NOTHING",
-            (trade["symbol"],)
-        )
-
-        cursor.execute(
-            """INSERT INTO insider_trades
-                (symbol, filing_date, trade_date, insider_name, insider_title,
-                 trade_type, shares, price_per_share, total_value, shares_owned_after)
-            SELECT %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
-            WHERE NOT EXISTS (
-                SELECT 1 FROM insider_trades
-                WHERE symbol = %s
-                AND trade_date = %s
-                AND insider_name = %s
-                AND trade_type = %s
-                AND shares = %s
-            )""",
-            (
-                trade["symbol"],
-                trade["filing_date"],
-                trade["trade_date"],
-                trade["insider_name"],
-                trade["insider_title"],
-                trade["trade_type"],
-                trade["shares"],
-                trade["price_per_share"],
-                trade["total_value"],
-                trade["shares_owned_after"],
-                trade["symbol"],
-                trade["trade_date"],
-                trade["insider_name"],
-                trade["trade_type"],
-                trade["shares"],
+        try:
+            cursor.execute(
+                "INSERT INTO stocks (symbol) VALUES (%s) ON CONFLICT (symbol) DO NOTHING",
+                (trade["symbol"],)
             )
-        )
-        total_saved += 1
 
-    conn.commit()
+            cursor.execute(
+                """INSERT INTO insider_trades
+                    (symbol, filing_date, trade_date, insider_name, insider_title,
+                     trade_type, shares, price_per_share, total_value, shares_owned_after)
+                SELECT %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM insider_trades
+                    WHERE symbol = %s
+                    AND trade_date = %s
+                    AND insider_name = %s
+                    AND trade_type = %s
+                    AND shares = %s
+                )""",
+                (
+                    trade["symbol"],
+                    trade["filing_date"],
+                    trade["trade_date"],
+                    trade["insider_name"],
+                    trade["insider_title"],
+                    trade["trade_type"],
+                    trade["shares"],
+                    trade["price_per_share"],
+                    trade["total_value"],
+                    trade["shares_owned_after"],
+                    trade["symbol"],
+                    trade["trade_date"],
+                    trade["insider_name"],
+                    trade["trade_type"],
+                    trade["shares"],
+                )
+            )
+            conn.commit()
+            total_saved += 1
+        except Exception:
+            conn.rollback()
+            total_skipped += 1
+
     cursor.close()
     conn.close()
-    print(f"Saved {total_saved} insider trades to database.")
-def fetch_all_insider_trades(days_back=365):
+    print(f"Saved {total_saved} insider trades to database. Skipped {total_skipped}.")
+
+def fetch_all_insider_trades(days_back=3650):
     from polygon_scraper import WATCHLIST
 
     all_trades = []
@@ -229,12 +245,15 @@ def fetch_all_insider_trades(days_back=365):
 
     for i, symbol in enumerate(WATCHLIST, 1):
         print(f"[{i}/{total}] Fetching insider trades for {symbol}...")
-        trades = get_insider_trades(symbol, days_back)
-        all_trades.extend(trades)
+        try:
+            trades = get_insider_trades(symbol, days_back)
+            all_trades.extend(trades)
+        except Exception as e:
+            print(f"  Failed: {e}")
 
     print(f"\nDone! Found {len(all_trades)} total insider trades across {total} stocks.")
     return all_trades
 
 if __name__ == "__main__":
-    trades = fetch_all_insider_trades(days_back=365)
+    trades = fetch_all_insider_trades(days_back=3650)
     save_insider_trades(trades)
