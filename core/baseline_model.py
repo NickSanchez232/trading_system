@@ -21,10 +21,19 @@ def load_and_prepare_data():
     # Convert label to numeric: 1 = strong_positive, 0 = strong_negative
     df_train['target'] = (df_train['label'] == 'strong_positive').astype(int)
 
-    # Select feature columns (drop non-feature columns)
+# Drop non-feature columns and snapshot features that leak future data
     drop_cols = ['symbol', 'date', 'return_pct', 'label', 'target',
                  'market_regime', 'fed_rate_direction', 'fear_greed_rating',
-                 'credit_spread_direction', 'earnings_beat']
+                 'credit_spread_direction', 'earnings_beat',
+                 # Snapshot features - current values applied to historical dates
+                 'revenue', 'revenue_growth', 'earnings_per_share', 'eps_growth',
+                 'profit_margin', 'pe_ratio', 'sector_avg_pe', 'pe_vs_sector',
+                 'free_cash_flow', 'fcf_yield', 'debt_to_equity',
+                 'days_to_next_earnings',
+                 'sector_momentum_vs_sp500', 'short_pct_of_float', 'short_ratio',
+                 'analyst_total_buy', 'analyst_total_sell', 'analyst_total_hold',
+                 'analyst_buy_sell_ratio', 'news_sentiment_score', 'article_count',
+                 'fear_greed_score', 'insider_ownership_pct', 'unemployment_rate']
 
     feature_cols = [c for c in df_train.columns if c not in drop_cols]
 

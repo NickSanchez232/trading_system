@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
 def build_training_dataset():
     db_url = os.getenv("DATABASE_URL")
     engine = create_engine(db_url)
@@ -34,6 +35,10 @@ def build_training_dataset():
     sentiment = pd.read_sql("SELECT * FROM sentiment", engine)
     print(f"  {len(sentiment)} sentiment records")
 
+    print("Loading insider signals...")
+    insider_signals = pd.read_sql("SELECT * FROM insider_signals", engine)
+    print(f"  {len(insider_signals)} insider signal records")
+
     engine.dispose()
 
     # Merge everything together on symbol and date
@@ -53,12 +58,9 @@ def build_training_dataset():
     fund_merge_cols = [c for c in fund_cols if c != 'date']
     dataset = dataset.merge(fundamentals_latest[fund_merge_cols], on='symbol', how='left')
 
-    # Merge macro - use the closest macro data for each date
+    # Merge macro by date
     macro_cols = [c for c in macro.columns if c not in ['id', 'created_at']]
-    macro_latest = macro.sort_values('date').iloc[-1:]
-    for col in macro_cols:
-        if col != 'date':
-            dataset[col] = macro_latest[col].values[0]
+    dataset = dataset.merge(macro[macro_cols], on='date', how='left')
 
     # Merge stock signals
     signal_cols = [c for c in stock_signals.columns if c not in ['id', 'created_at']]
@@ -72,6 +74,10 @@ def build_training_dataset():
     sent_merge_cols = [c for c in sent_cols if c != 'date']
     dataset = dataset.merge(sentiment_latest[sent_merge_cols], on='symbol', how='left')
 
+    # Merge insider signals
+    insider_cols = [c for c in insider_signals.columns if c not in ['id', 'created_at']]
+    dataset = dataset.merge(insider_signals[insider_cols], on=['symbol', 'date'], how='left')
+
     print(f"\nFinal dataset: {len(dataset)} rows x {len(dataset.columns)} columns")
     print(f"\nColumns: {list(dataset.columns)}")
 
@@ -81,6 +87,7 @@ def build_training_dataset():
     print(f"Rows missing technical data: {len(dataset) - len(complete)}")
 
     return dataset
+
 
 def save_dataset(dataset):
     # Save to CSV for easy model training later
