@@ -1,8 +1,8 @@
 import os
 import psycopg2
-from sqlalchemy import create_engine
 import pandas as pd
 from datetime import datetime, date, timedelta
+from sqlalchemy import create_engine
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -20,61 +20,76 @@ def get_price_data():
     return df
 
 
-def generate_labels(df, window_days=30):
-    print(f"Generating labels with {window_days}-day window...")
+def generate_labels(df, configs=None):
+    if configs is None:
+        configs = [
+            {"window_days": 14, "strong_threshold": 0.05, "neutral_band": 0.025, "suffix": "_2w"},
+            {"window_days": 30, "strong_threshold": 0.10, "neutral_band": 0.05, "suffix": "_30d"},
+        ]
 
-    labels = []
+    all_labels = []
 
-    for symbol in df['symbol'].unique():
-        stock_df = df[df['symbol'] == symbol].sort_values('date').reset_index(drop=True)
+    for config in configs:
+        window = config["window_days"]
+        strong = config["strong_threshold"]
+        neutral = config["neutral_band"]
+        suffix = config["suffix"]
 
-        for i in range(len(stock_df)):
-            signal_date = stock_df.loc[i, 'date']
-            signal_price = stock_df.loc[i, 'close']
+        print(f"Generating labels: {window}-day window, {strong:.0%} threshold...")
 
-            # Find the price approximately 30 days later
-            future_mask = stock_df['date'] >= signal_date + timedelta(days=window_days)
-            future_rows = stock_df[future_mask]
+        for symbol in df['symbol'].unique():
+            stock_df = df[df['symbol'] == symbol].sort_values('date').reset_index(drop=True)
 
-            if future_rows.empty:
-                continue
+            for i in range(len(stock_df)):
+                signal_date = stock_df.loc[i, 'date']
+                signal_price = stock_df.loc[i, 'close']
 
-            outcome_row = future_rows.iloc[0]
-            outcome_date = outcome_row['date']
-            outcome_price = outcome_row['close']
+                future_mask = stock_df['date'] >= signal_date + timedelta(days=window)
+                future_rows = stock_df[future_mask]
 
-            return_pct = (outcome_price - signal_price) / signal_price
+                if future_rows.empty:
+                    continue
 
-            # Classify the outcome
-            if return_pct >= 0.10:
-                label = "strong_positive"
-            elif return_pct <= -0.10:
-                label = "strong_negative"
-            elif abs(return_pct) <= 0.05:
-                label = "neutral"
-            else:
-                label = "moderate"
+                outcome_row = future_rows.iloc[0]
+                outcome_date = outcome_row['date']
+                outcome_price = outcome_row['close']
 
-            labels.append({
-                "symbol": symbol,
-                "signal_date": signal_date,
-                "outcome_date": outcome_date,
-                "price_at_signal": float(signal_price),
-                "price_at_outcome": float(outcome_price),
-                "return_pct": float(return_pct),
-                "label": label,
-            })
+                return_pct = (outcome_price - signal_price) / signal_price
 
-    print(f"Generated {len(labels)} labels")
+                if return_pct >= strong:
+                    label = "strong_positive"
+                elif return_pct <= -strong:
+                    label = "strong_negative"
+                elif abs(return_pct) <= neutral:
+                    label = "neutral"
+                else:
+                    label = "moderate"
 
-    # Show distribution
-    label_counts = {}
-    for l in labels:
-        label_counts[l['label']] = label_counts.get(l['label'], 0) + 1
-    for label, count in sorted(label_counts.items()):
-        print(f"  {label}: {count}")
+                all_labels.append({
+                    "symbol": symbol,
+                    "signal_date": signal_date,
+                    "outcome_date": outcome_date,
+                    "price_at_signal": float(signal_price),
+                    "price_at_outcome": float(outcome_price),
+                    "return_pct": float(return_pct),
+                    "label": label,
+                    "timeframe": suffix,
+                })
 
-    return labels
+    print(f"\nGenerated {len(all_labels)} total labels")
+
+    for config in configs:
+        suffix = config["suffix"]
+        tf_labels = [l for l in all_labels if l["timeframe"] == suffix]
+        print(f"\n{suffix} distribution:")
+        label_counts = {}
+        for l in tf_labels:
+            label_counts[l['label']] = label_counts.get(l['label'], 0) + 1
+        for label, count in sorted(label_counts.items()):
+            print(f"  {label}: {count}")
+
+    return all_labels
+
 
 def save_labels(labels):
     db_url = os.getenv("DATABASE_URL")
@@ -87,9 +102,9 @@ def save_labels(labels):
         cursor.execute(
             """INSERT INTO labels
                 (symbol, signal_date, outcome_date, price_at_signal,
-                 price_at_outcome, return_pct, label)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (symbol, signal_date) DO NOTHING""",
+                 price_at_outcome, return_pct, label, timeframe)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (symbol, signal_date, timeframe) DO NOTHING""",
             (
                 l["symbol"],
                 l["signal_date"],
@@ -98,6 +113,7 @@ def save_labels(labels):
                 l["price_at_outcome"],
                 l["return_pct"],
                 l["label"],
+                l["timeframe"],
             )
         )
         total_saved += 1

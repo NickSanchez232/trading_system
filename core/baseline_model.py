@@ -8,11 +8,15 @@ import joblib
 from datetime import datetime
 
 
-def load_and_prepare_data():
+def load_and_prepare_data(timeframe="_2w"):
     data_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'training_dataset.csv')
     df = pd.read_csv(data_path)
 
     print(f"Loaded {len(df)} rows")
+
+    # Filter by timeframe
+    df = df[df['timeframe'] == timeframe]
+    print(f"Filtered to {timeframe}: {len(df)} rows")
 
     # Only train on strong signals
     df_train = df[df['label'].isin(['strong_positive', 'strong_negative'])].copy()
@@ -21,11 +25,10 @@ def load_and_prepare_data():
     # Convert label to numeric: 1 = strong_positive, 0 = strong_negative
     df_train['target'] = (df_train['label'] == 'strong_positive').astype(int)
 
-# Drop non-feature columns and snapshot features that leak future data
-    drop_cols = ['symbol', 'date', 'return_pct', 'label', 'target',
+    # Drop non-feature columns and snapshot features that leak future data
+    drop_cols = ['symbol', 'date', 'return_pct', 'label', 'target', 'timeframe',
                  'market_regime', 'fed_rate_direction', 'fear_greed_rating',
                  'credit_spread_direction', 'earnings_beat',
-                 # Snapshot features - current values applied to historical dates
                  'revenue', 'revenue_growth', 'earnings_per_share', 'eps_growth',
                  'profit_margin', 'pe_ratio', 'sector_avg_pe', 'pe_vs_sector',
                  'free_cash_flow', 'fcf_yield', 'debt_to_equity',
@@ -54,9 +57,9 @@ def load_and_prepare_data():
 
     return X, y, feature_cols
 
+
 def train_model(X, y, feature_cols):
     # Split by time - not randomly
-    # Earlier data for training, recent data for testing
     split_point = int(len(X) * 0.8)
     X_train = X.iloc[:split_point]
     y_train = y.iloc[:split_point]
@@ -97,7 +100,7 @@ def train_model(X, y, feature_cols):
     print("\nClassification Report:")
     print(classification_report(y_test, y_pred, target_names=['Avoid', 'Buy']))
 
-    # Feature importance - which signals matter most
+    # Feature importance
     importance = pd.DataFrame({
         'feature': feature_cols,
         'importance': model.feature_importances_
@@ -109,21 +112,26 @@ def train_model(X, y, feature_cols):
 
     return model, importance
 
-def save_model(model, importance):
+
+def save_model(model, importance, timeframe=""):
     model_dir = os.path.join(os.path.dirname(__file__), '..', 'models')
     os.makedirs(model_dir, exist_ok=True)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    model_path = os.path.join(model_dir, f'xgboost_v1_{timestamp}.json')
+    model_path = os.path.join(model_dir, f'xgboost{timeframe}_{timestamp}.json')
     model.save_model(model_path)
     print(f"\nModel saved to {model_path}")
 
-    importance_path = os.path.join(model_dir, f'feature_importance_{timestamp}.csv')
+    importance_path = os.path.join(model_dir, f'feature_importance{timeframe}_{timestamp}.csv')
     importance.to_csv(importance_path, index=False)
     print(f"Feature importance saved to {importance_path}")
 
 
 if __name__ == "__main__":
-    X, y, feature_cols = load_and_prepare_data()
-    model, importance = train_model(X, y, feature_cols)
-    save_model(model, importance)
+    for tf in ["_2w", "_30d"]:
+        print(f"\n{'='*50}")
+        print(f"TRAINING {tf} MODEL")
+        print(f"{'='*50}")
+        X, y, feature_cols = load_and_prepare_data(tf)
+        model, importance = train_model(X, y, feature_cols)
+        save_model(model, importance, tf)
