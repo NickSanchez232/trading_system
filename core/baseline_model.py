@@ -3,10 +3,29 @@ import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
-from sklearn.model_selection import GridSearchCV
 import xgboost as xgb
 import joblib
 from datetime import datetime
+
+
+BEST_PARAMS = {
+    "_2w": {
+        'n_estimators': 500,
+        'max_depth': 8,
+        'learning_rate': 0.05,
+        'min_child_weight': 1,
+        'subsample': 0.7,
+        'colsample_bytree': 0.7,
+    },
+    "_30d": {
+        'n_estimators': 1000,
+        'max_depth': 8,
+        'learning_rate': 0.03,
+        'min_child_weight': 1,
+        'subsample': 0.8,
+        'colsample_bytree': 0.7,
+    },
+}
 
 
 def load_and_prepare_data(timeframe="_2w"):
@@ -59,7 +78,7 @@ def load_and_prepare_data(timeframe="_2w"):
     return X, y, feature_cols
 
 
-def train_model(X, y, feature_cols):
+def train_model(X, y, feature_cols, timeframe="_2w"):
     # Split by time - not randomly
     split_point = int(len(X) * 0.8)
     X_train = X.iloc[:split_point]
@@ -75,13 +94,17 @@ def train_model(X, y, feature_cols):
     pos_count = len(y_train[y_train == 1])
     scale_weight = neg_count / pos_count
 
-    # Create XGBoost model
+    # Get best parameters for this timeframe
+    params = BEST_PARAMS.get(timeframe, BEST_PARAMS["_2w"])
+
+    # Create XGBoost model with tuned parameters
     model = xgb.XGBClassifier(
-        n_estimators=200,
-        max_depth=5,
-        learning_rate=0.05,
-        subsample=0.8,
-        colsample_bytree=0.8,
+        n_estimators=params['n_estimators'],
+        max_depth=params['max_depth'],
+        learning_rate=params['learning_rate'],
+        min_child_weight=params['min_child_weight'],
+        subsample=params['subsample'],
+        colsample_bytree=params['colsample_bytree'],
         random_state=42,
         eval_metric='logloss',
         scale_pos_weight=scale_weight,
@@ -119,67 +142,6 @@ def train_model(X, y, feature_cols):
 
     return model, importance
 
-def tune_model(X, y, feature_cols):
-    split_point = int(len(X) * 0.8)
-    X_train = X.iloc[:split_point]
-    y_train = y.iloc[:split_point]
-    X_test = X.iloc[split_point:]
-    y_test = y.iloc[split_point:]
-
-    neg_count = len(y_train[y_train == 0])
-    pos_count = len(y_train[y_train == 1])
-    scale_weight = neg_count / pos_count
-
-    print("\nTuning hyperparameters...")
-
-    param_grid = {
-        'n_estimators': [200, 300, 500, 800, 1000],
-        'max_depth': [3, 4, 5, 6, 7, 8],
-        'learning_rate': [0.01, 0.03, 0.05, 0.08, 0.1],
-        'min_child_weight': [1, 3, 5, 7],
-        'subsample': [0.7, 0.8, 0.9],
-        'colsample_bytree': [0.7, 0.8, 0.9],
-    }
-
-    base_model = xgb.XGBClassifier(
-        random_state=42,
-        eval_metric='logloss',
-        scale_pos_weight=scale_weight,
-    )
-
-    grid = GridSearchCV(
-        base_model,
-        param_grid,
-        cv=3,
-        scoring='accuracy',
-        verbose=1,
-        n_jobs=-1,
-    )
-
-    grid.fit(X_train, y_train)
-
-    print(f"\nBest parameters: {grid.best_params_}")
-    print(f"Best CV accuracy: {grid.best_score_:.2%}")
-
-    # Test best model
-    best_model = grid.best_estimator_
-    y_pred = best_model.predict(X_test)
-    accuracy = accuracy_score(y_test, y_pred)
-    print(f"Test accuracy: {accuracy:.2%}")
-    print("\nClassification Report:")
-    print(classification_report(y_test, y_pred, target_names=['Avoid', 'Buy']))
-
-    importance = pd.DataFrame({
-        'feature': feature_cols,
-        'importance': best_model.feature_importances_
-    }).sort_values('importance', ascending=False)
-
-    print("\nTop 15 Most Important Features:")
-    for _, row in importance.head(15).iterrows():
-        print(f"  {row['feature']}: {row['importance']:.4f}")
-
-    return best_model, importance
-
 
 def save_model(model, importance, timeframe=""):
     model_dir = os.path.join(os.path.dirname(__file__), '..', 'models')
@@ -198,8 +160,8 @@ def save_model(model, importance, timeframe=""):
 if __name__ == "__main__":
     for tf in ["_2w", "_30d"]:
         print(f"\n{'='*50}")
-        print(f"TUNING {tf} MODEL")
+        print(f"TRAINING {tf} MODEL")
         print(f"{'='*50}")
         X, y, feature_cols = load_and_prepare_data(tf)
-        model, importance = tune_model(X, y, feature_cols)
+        model, importance = train_model(X, y, feature_cols, tf)
         save_model(model, importance, tf)
