@@ -39,6 +39,10 @@ def build_training_dataset():
     insider_signals = pd.read_sql("SELECT * FROM insider_signals", engine)
     print(f"  {len(insider_signals)} insider signal records")
 
+    print("Loading relative value...")
+    relative_value = pd.read_sql("SELECT * FROM relative_value", engine)
+    print(f"  {len(relative_value)} relative value records")
+
     engine.dispose()
 
     # Merge everything together on symbol and date
@@ -77,6 +81,10 @@ def build_training_dataset():
     # Merge insider signals
     insider_cols = [c for c in insider_signals.columns if c not in ['id', 'created_at']]
     dataset = dataset.merge(insider_signals[insider_cols], on=['symbol', 'date'], how='left')
+
+    # Merge relative value
+    rv_cols = [c for c in relative_value.columns if c not in ['id', 'created_at']]
+    dataset = dataset.merge(relative_value[rv_cols], on=['symbol', 'date'], how='left')
 
     print(f"\nFinal dataset: {len(dataset)} rows x {len(dataset.columns)} columns")
     print(f"\nColumns: {list(dataset.columns)}")
