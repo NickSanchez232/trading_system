@@ -43,6 +43,14 @@ def build_training_dataset():
     relative_value = pd.read_sql("SELECT * FROM relative_value", engine)
     print(f"  {len(relative_value)} relative value records")
 
+    print("Loading institutional holdings...")
+    institutional = pd.read_sql("SELECT * FROM institutional_holdings", engine)
+    print(f"  {len(institutional)} institutional records")
+
+    print("Loading buyback signals...")
+    buybacks = pd.read_sql("SELECT * FROM buyback_signals", engine)
+    print(f"  {len(buybacks)} buyback records")
+
     engine.dispose()
 
     # Merge everything together on symbol and date
@@ -85,6 +93,17 @@ def build_training_dataset():
     # Merge relative value
     rv_cols = [c for c in relative_value.columns if c not in ['id', 'created_at']]
     dataset = dataset.merge(relative_value[rv_cols], on=['symbol', 'date'], how='left')
+
+    # Merge institutional holdings - use most recent snapshot per stock
+    inst_cols = [c for c in institutional.columns if c not in ['id', 'created_at']]
+    if len(institutional) > 0:
+        inst_latest = institutional.sort_values('date').groupby('symbol').last().reset_index()
+        inst_merge_cols = [c for c in inst_cols if c != 'date']
+        dataset = dataset.merge(inst_latest[inst_merge_cols], on='symbol', how='left')
+
+    # Merge buyback signals
+    bb_cols = [c for c in buybacks.columns if c not in ['id', 'created_at']]
+    dataset = dataset.merge(buybacks[bb_cols], on=['symbol', 'date'], how='left')
 
     print(f"\nFinal dataset: {len(dataset)} rows x {len(dataset.columns)} columns")
     print(f"\nColumns: {list(dataset.columns)}")

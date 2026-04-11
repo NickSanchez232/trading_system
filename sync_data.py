@@ -11,12 +11,17 @@ TABLES_TO_SYNC = [
     "stocks",
     "daily_prices",
     "insider_trades",
+    "insider_signals",
     "technicals",
     "fundamentals",
     "macro_data",
     "stock_signals",
     "sentiment",
     "congress_trades",
+    "labels",
+    "relative_value",
+    "institutional_holdings",
+    "buyback_signals",
 ]
 
 

@@ -57,7 +57,8 @@ def load_and_prepare_data(timeframe="_2w"):
                  'sector_momentum_vs_sp500', 'short_pct_of_float', 'short_ratio',
                  'analyst_total_buy', 'analyst_total_sell', 'analyst_total_hold',
                  'analyst_buy_sell_ratio', 'news_sentiment_score', 'article_count',
-                 'fear_greed_score', 'insider_ownership_pct', 'unemployment_rate']
+                 'fear_greed_score', 'insider_ownership_pct', 'unemployment_rate',
+                 'fund_names', 'has_active_buyback']
 
     feature_cols = [c for c in df_train.columns if c not in drop_cols]
 

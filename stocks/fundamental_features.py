@@ -23,6 +23,7 @@ def get_fundamentals(symbol):
     try:
         earnings_hist = stock.earnings_dates
         earnings_beat = None
+        earnings_surprise_pct = None
         last_earnings_date = None
         next_earnings_date = None
 
@@ -41,12 +42,14 @@ def get_fundamentals(symbol):
                         surprise = row.get("Surprise(%)")
                         if pd.notna(surprise):
                             earnings_beat = bool(surprise > 0)
+                            earnings_surprise_pct = float(surprise)
                 else:
                     if next_earnings_date is None:
                         next_earnings_date = earnings_date
     except Exception as e:
         print(f"  Earnings data error: {e}")
         earnings_beat = None
+        earnings_surprise_pct = None
         last_earnings_date = None
         next_earnings_date = None
 
@@ -79,6 +82,7 @@ def get_fundamentals(symbol):
         "sector": info.get("sector"),
         "industry": info.get("industry"),
         "earnings_beat": earnings_beat,
+        "earnings_surprise_pct": earnings_surprise_pct,
         "days_to_next_earnings": days_to_earnings,
     }
 
@@ -87,6 +91,7 @@ def get_fundamentals(symbol):
     print(f"  P/E: {fundamentals['pe_ratio']}")
     print(f"  FCF Yield: {fundamentals['fcf_yield']}")
     print(f"  Earnings Beat: {fundamentals['earnings_beat']}")
+    print(f"  Earnings Surprise: {fundamentals['earnings_surprise_pct']}")
     print(f"  Days to Earnings: {fundamentals['days_to_next_earnings']}")
 
     return fundamentals
@@ -148,8 +153,8 @@ def save_fundamentals(all_fundamentals):
                 (symbol, date, revenue, revenue_growth, earnings_per_share,
                  eps_growth, profit_margin, pe_ratio, sector_avg_pe, pe_vs_sector,
                  free_cash_flow, fcf_yield, debt_to_equity,
-                 earnings_beat, days_to_next_earnings)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                 earnings_beat, earnings_surprise_pct, days_to_next_earnings)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol, date) DO NOTHING""",
             (
                 f["symbol"],
@@ -166,6 +171,7 @@ def save_fundamentals(all_fundamentals):
                 f["fcf_yield"],
                 f["debt_to_equity"],
                 f["earnings_beat"],
+                f["earnings_surprise_pct"],
                 f["days_to_next_earnings"],
             )
         )
