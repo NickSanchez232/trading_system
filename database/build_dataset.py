@@ -12,7 +12,7 @@ def build_training_dataset():
     engine = create_engine(db_url)
 
     print("Loading labels...")
-    labels = pd.read_sql("SELECT symbol, signal_date, return_pct, label, timeframe FROM labels", engine)
+    labels = pd.read_sql("SELECT symbol, signal_date, return_pct, max_gain, max_drawdown, label, timeframe FROM labels", engine)
     print(f"  {len(labels)} labels")
 
     print("Loading technicals...")

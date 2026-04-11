@@ -56,6 +56,21 @@ def generate_labels(df, configs=None):
 
                 return_pct = (outcome_price - signal_price) / signal_price
 
+                # Track what happens during the trade window
+                window_data = stock_df[
+                    (stock_df['date'] > signal_date) &
+                    (stock_df['date'] <= outcome_row['date'])
+                ]
+
+                if len(window_data) > 0:
+                    max_price = window_data['close'].max()
+                    min_price = window_data['close'].min()
+                    max_gain = (max_price - signal_price) / signal_price
+                    max_drawdown = (min_price - signal_price) / signal_price
+                else:
+                    max_gain = 0
+                    max_drawdown = 0
+
                 if return_pct >= strong:
                     label = "strong_positive"
                 elif return_pct <= -strong:
@@ -72,6 +87,8 @@ def generate_labels(df, configs=None):
                     "price_at_signal": float(signal_price),
                     "price_at_outcome": float(outcome_price),
                     "return_pct": float(return_pct),
+                    "max_gain": float(max_gain),
+                    "max_drawdown": float(max_drawdown),
                     "label": label,
                     "timeframe": suffix,
                 })
@@ -102,8 +119,8 @@ def save_labels(labels):
         cursor.execute(
             """INSERT INTO labels
                 (symbol, signal_date, outcome_date, price_at_signal,
-                 price_at_outcome, return_pct, label, timeframe)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                 price_at_outcome, return_pct, max_gain, max_drawdown, label, timeframe)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol, signal_date, timeframe) DO NOTHING""",
             (
                 l["symbol"],
@@ -112,6 +129,8 @@ def save_labels(labels):
                 l["price_at_signal"],
                 l["price_at_outcome"],
                 l["return_pct"],
+                l["max_gain"],
+                l["max_drawdown"],
                 l["label"],
                 l["timeframe"],
             )

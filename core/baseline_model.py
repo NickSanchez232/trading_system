@@ -47,6 +47,7 @@ def load_and_prepare_data(timeframe="_2w"):
 
     # Drop non-feature columns and snapshot features that leak future data
     drop_cols = ['symbol', 'date', 'return_pct', 'label', 'target', 'timeframe',
+                 'max_gain', 'max_drawdown',
                  'market_regime', 'fed_rate_direction', 'fear_greed_rating',
                  'credit_spread_direction', 'earnings_beat',
                  'revenue', 'revenue_growth', 'earnings_per_share', 'eps_growth',
@@ -136,8 +137,8 @@ def train_model(X, y, feature_cols, timeframe="_2w"):
         'importance': model.feature_importances_
     }).sort_values('importance', ascending=False)
 
-    print("\nTop 15 Most Important Features:")
-    for _, row in importance.head(15).iterrows():
+    print("\nAll feature importanceb:")
+    for _, row in importance.head(42).iterrows():
         print(f"  {row['feature']}: {row['importance']:.4f}")
 
     return model, importance
