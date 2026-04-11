@@ -19,9 +19,15 @@ from macro_features import (get_vix_data, get_sp500_data, get_fed_rate,
                             get_analyst_ratings, save_macro_data,
                             save_stock_signals, STOCK_SECTOR_MAP)
 from sentiment_features import get_news_sentiment, save_sentiment, COMPANY_NAMES
+from insider_features import get_insider_trades as get_insider_trade_data, get_price_dates, calculate_insider_features, save_insider_features
+from relative_value import get_price_data as get_rv_price_data, calculate_relative_value, save_relative_value
+from institutional_holdings import get_13f_holdings, match_holdings_to_watchlist, save_institutional, BIG_FUNDS
+from buyback_scraper import get_buybacks, calculate_buyback_signals, save_buyback_signals
 
 import psycopg2
+import pandas as pd
 from datetime import datetime
+from sqlalchemy import create_engine
 
 DB_URL = os.getenv("DATABASE_URL")
 
@@ -150,6 +156,73 @@ def run_sentiment():
     print(f"Sentiment done!\n")
 
 
+def run_insider_features():
+    print("=" * 50)
+    print("STEP 7: Insider Signal Features")
+    print("=" * 50)
+    try:
+        insider_trades = get_insider_trade_data()
+        price_dates = get_price_dates()
+        features = calculate_insider_features(price_dates, insider_trades)
+        save_insider_features(features)
+        print(f"Insider features done!\n")
+    except Exception as e:
+        print(f"Insider features failed: {e}\n")
+
+
+def run_relative_value():
+    print("=" * 50)
+    print("STEP 8: Relative Value")
+    print("=" * 50)
+    try:
+        df = get_rv_price_data()
+        features = calculate_relative_value(df)
+        save_relative_value(features)
+        print(f"Relative value done!\n")
+    except Exception as e:
+        print(f"Relative value failed: {e}\n")
+
+
+def run_institutional():
+    print("=" * 50)
+    print("STEP 9: Institutional Holdings")
+    print("=" * 50)
+    try:
+        all_holdings = []
+        for cik, fund_name in BIG_FUNDS.items():
+            holdings = get_13f_holdings(cik, fund_name)
+            all_holdings.extend(holdings)
+            time.sleep(1)
+        matched = match_holdings_to_watchlist(all_holdings)
+        save_institutional(matched)
+        print(f"Institutional holdings done!\n")
+    except Exception as e:
+        print(f"Institutional holdings failed: {e}\n")
+
+
+def run_buybacks():
+    print("=" * 50)
+    print("STEP 10: Buyback Signals")
+    print("=" * 50)
+    try:
+        engine = create_engine(DB_URL)
+        price_dates = pd.read_sql("SELECT DISTINCT symbol, date FROM daily_prices ORDER BY symbol, date", engine)
+        engine.dispose()
+
+        all_signals = []
+        for symbol in WATCHLIST:
+            buybacks = get_buybacks(symbol)
+            symbol_dates = price_dates[price_dates['symbol'] == symbol]
+            if len(symbol_dates) > 0:
+                signals = calculate_buyback_signals(symbol, buybacks, symbol_dates)
+                all_signals.extend(signals)
+            time.sleep(0.5)
+        save_buyback_signals(all_signals)
+        print(f"Buyback signals done!\n")
+    except Exception as e:
+        print(f"Buyback signals failed: {e}\n")
+
+
 if __name__ == "__main__":
     print("=" * 50)
     print(f"FULL DATA COLLECTION - {date.today()}")
@@ -161,6 +234,10 @@ if __name__ == "__main__":
     run_fundamentals()
     run_macro()
     run_sentiment()
+    run_insider_features()
+    run_relative_value()
+    run_institutional()
+    run_buybacks()
 
     print("=" * 50)
     print("ALL DONE! Full pipeline complete.")
