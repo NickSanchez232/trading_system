@@ -27,7 +27,7 @@ BEST_PARAMS = {
 
 def load_data(timeframe="_2w"):
     data_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'training_dataset.csv')
-    df = pd.read_csv(data_path)
+    df = pd.read_csv(data_path, low_memory=False)
 
     df = df[df['timeframe'] == timeframe]
     df_train = df[df['label'].isin(['strong_positive', 'strong_negative'])].copy()
@@ -44,18 +44,22 @@ def load_data(timeframe="_2w"):
                  'sector_momentum_vs_sp500', 'short_pct_of_float', 'short_ratio',
                  'analyst_total_buy', 'analyst_total_sell', 'analyst_total_hold',
                  'analyst_buy_sell_ratio', 'news_sentiment_score', 'article_count',
-                 'fear_greed_score', 'insider_ownership_pct', 'unemployment_rate']
+                 'fear_greed_score', 'insider_ownership_pct', 'unemployment_rate',
+                 'fund_names', 'has_active_buyback']
 
     feature_cols = [c for c in df_train.columns if c not in drop_cols]
 
-    X = df_train[feature_cols]
+    # Sort by DATE for truly chronological walk-forward splits
+    df_train = df_train.sort_values('date').reset_index(drop=True)
+
+    X = df_train[feature_cols].apply(pd.to_numeric, errors='coerce')
     y = df_train['target']
     dates = df_train['date']
 
     valid_mask = X.notna().sum(axis=1) >= (len(feature_cols) * 0.5)
-    X = X[valid_mask]
-    y = y[valid_mask]
-    dates = dates[valid_mask]
+    X = X[valid_mask].reset_index(drop=True)
+    y = y[valid_mask].reset_index(drop=True)
+    dates = dates[valid_mask].reset_index(drop=True)
 
     return X, y, dates, feature_cols
 
